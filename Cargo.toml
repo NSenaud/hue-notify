@@ -1,0 +1,11 @@
+[package]
+name = "hue-notify"
+version = "0.1.0"
+authors = ["nsd"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+huelib = "0.6.1"
+ureq = { version = "1.1.1", features = ["json"] }
