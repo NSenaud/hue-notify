@@ -18,22 +18,23 @@ use huelib::Bridge;
 
 const TRANSITION_TIME: u16 = 10;
 
-/// PagerDuty notifications support
-///
-/// * token: a PagerDuty token with read access
-/// * team_id: team ID to look for unacknowledged alerts
-/// * user_id: user ID to filter alerts for
-/// * color: Hue alert color
+/// PagerDuty notifications support.
 struct PagerDuty {
+    /// a PagerDuty token with read access
     token: String,
+    /// team ID to look for unacknowledged alerts
     team_id: String,
+    /// user ID to filter alerts for
     user_id: String,
+    /// Hue alert color
     color: Color,
 }
 
-//#[derive(Clone)]
+/// Hue configuration to show alert with.
 struct Hue {
+    /// Hue light ID used to show notifications.
     light_id: String,
+    /// Hue Bridge configuration.
     bridge: Bridge,
 }
 
@@ -72,16 +73,19 @@ async fn run(pagerduty: PagerDuty, hue: Hue) {
     }
 }
 
+/// Wait for n seconds.
 fn wait(seconds: u64) {
     debug!("Wait for {}s...", seconds);
     sleep(Duration::new(seconds, 0))
 }
 
+/// Wait for n seconds (async version).
 async fn wait_async(seconds: u64) {
     debug!("Wait for {}s... (async)", seconds);
     sleep(Duration::new(seconds, 0))
 }
 
+/// Check for new events and show notifications.
 async fn check_and_notify(pagerduty: &PagerDuty, hue: &Hue) {
     if pagerduty.get_incidents_count() > 0 {
         info!("New PagerDuty incident triggered!");
@@ -95,6 +99,7 @@ async fn check_and_notify(pagerduty: &PagerDuty, hue: &Hue) {
 }
 
 impl PagerDuty {
+    /// Returns a new PagerDuty configuration.
     fn new(token: String, team_id: String, user_id: String) -> PagerDuty {
         info!(
             "New PagerDuty configuration for team ID {} and user ID {}",
@@ -108,6 +113,7 @@ impl PagerDuty {
         }
     }
 
+    /// Returns count of triggered incidents.
     fn get_incidents_count(&self) -> usize {
         debug!("Looking for triggered incidents on PagerDuty...");
         let resp = ureq::get("https://api.pagerduty.com/incidents")
@@ -129,6 +135,7 @@ impl PagerDuty {
 }
 
 impl Hue {
+    /// Returns a new Hue configuration.
     fn new(ip: Ipv4Addr, username: String, light_id: String) -> Hue {
         info!(
             "New Hue Brigde configuration at {} for light {}",
@@ -140,6 +147,10 @@ impl Hue {
         }
     }
 
+    /// Blink the configured light.
+    ///
+    /// This a "quick" notification (change color, blink once, then put back
+    /// initial configuration).
     fn blink(&self, color: Color) -> Result<()> {
         info!("Blinking...");
         let alert = Alert::Select;
@@ -149,6 +160,10 @@ impl Hue {
         Ok(())
     }
 
+    /// Show alert with the configured light.
+    ///
+    /// This a longer notification (change color, blink for 15 seconds, then
+    /// put back initial configuration).
     fn alert(&self, color: Color) -> Result<()> {
         info!("Alerting...");
         let alert = Alert::LSelect;
@@ -158,6 +173,8 @@ impl Hue {
         Ok(())
     }
 
+    /// Generic code used to display alert, you should use higher level
+    /// `blink()` or `alert()` function instead.
     fn notify(&self, alert: Alert, color: Color, duration: u64) -> Result<()> {
         // Get current setup to reapply later
         let light = self.bridge.get_light(&self.light_id)?;
@@ -198,6 +215,7 @@ impl Hue {
         Ok(())
     }
 
+    /// Returns a light state modifier from a light state.
     fn modifier_from(&self, state: light::State) -> light::StateModifier {
         light::StateModifier::new()
             .on(state.on.unwrap())
