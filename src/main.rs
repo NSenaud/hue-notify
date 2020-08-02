@@ -1,8 +1,7 @@
 #[macro_use]
 extern crate log;
-#[macro_use]
-extern crate dotenv_codegen;
 
+use std::env;
 use std::net::{IpAddr, Ipv4Addr};
 use std::str::FromStr;
 use std::thread::sleep;
@@ -43,15 +42,22 @@ fn main() {
     dotenv().ok();
 
     info!("Initialazing...");
-    let token = dotenv!("PAGERDUTY_TOKEN").to_string();
-    let team_id = dotenv!("PAGERDUTY_TEAM_ID").to_string();
-    let user_id = dotenv!("PAGERDUTY_USER_ID").to_string();
-    let ip = dotenv!("HUEBRIDGE_IP").to_string();
-    let username = dotenv!("HUEBRIDGE_USERNAME").to_string();
-    let light = dotenv!("HUEBRIDGE_LIGHT").to_string();
-
-    let pagerduty = PagerDuty::new(token, team_id, user_id);
-    let hue = Hue::new(Ipv4Addr::from_str(&ip).unwrap(), username, light);
+    let pagerduty = PagerDuty::new(
+        env::var("PAGERDUTY_TOKEN").expect("PAGERDUTY_TOKEN environment variable must be defined"),
+        env::var("PAGERDUTY_TEAM_ID")
+            .expect("PAGERDUTY_TEAM_ID environment variable must be defined"),
+        env::var("PAGERDUTY_USER_ID")
+            .expect("PAGERDUTY_USER_ID environment variable must be defined"),
+    );
+    let hue = Hue::new(
+        Ipv4Addr::from_str(
+            &env::var("HUEBRIDGE_IP").expect("HUEBRIDGE_IP environment variable must be defined"),
+        )
+        .unwrap(),
+        env::var("HUEBRIDGE_USERNAME")
+            .expect("HUEBRIDGE_USERNAME environment variable must be defined"),
+        env::var("HUEBRIDGE_LIGHT").expect("HUEBRIDGE_LIGHT environment variable must be defined"),
+    );
 
     let future = run(pagerduty, hue);
     block_on(future);
