@@ -4,6 +4,7 @@ extern crate log;
 use std::env;
 use std::net::{IpAddr, Ipv4Addr};
 use std::str::FromStr;
+use std::thread;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -31,8 +32,8 @@ struct PagerDuty {
 
 /// Hue configuration to show alert with.
 struct Hue {
-    /// Hue light ID used to show notifications.
-    light_id: String,
+    /// Hue lights IDs used to show notifications.
+    light_ids: Vec<String>,
     /// Hue Bridge configuration.
     bridge: Bridge,
 }
@@ -56,7 +57,11 @@ fn main() {
         .unwrap(),
         env::var("HUEBRIDGE_USERNAME")
             .expect("HUEBRIDGE_USERNAME environment variable must be defined"),
-        env::var("HUEBRIDGE_LIGHT").expect("HUEBRIDGE_LIGHT environment variable must be defined"),
+        env::var("HUEBRIDGE_LIGHT_IDS")
+            .expect("HUEBRIDGE_LIGHT_IDS environment variable must be defined")
+            .split(",")
+            .map(|s| s.to_owned())
+            .collect(),
     );
 
     let future = run(pagerduty, hue);
@@ -142,14 +147,14 @@ impl PagerDuty {
 
 impl Hue {
     /// Returns a new Hue configuration.
-    fn new(ip: Ipv4Addr, username: String, light_id: String) -> Hue {
+    fn new(ip: Ipv4Addr, username: String, light_ids: Vec<String>) -> Hue {
         info!(
-            "New Hue Brigde configuration at {} for light {}",
-            ip, light_id
+            "New Hue Brigde configuration at {} for lights {:?}",
+            ip, light_ids
         );
         Hue {
             bridge: Bridge::new(IpAddr::V4(ip), &username),
-            light_id,
+            light_ids,
         }
     }
 
@@ -161,7 +166,19 @@ impl Hue {
         info!("Blinking...");
         let alert = Alert::Select;
         let duration = 1;
-        self.notify(alert, color, duration)?;
+        for id in self.light_ids.clone() {
+            let bridge = self.bridge.clone();
+            thread::spawn(move || {
+                Hue::notify(
+                    bridge.to_owned(),
+                    &id.to_owned(),
+                    alert.to_owned(),
+                    color.to_owned(),
+                    duration.to_owned(),
+                )
+                .unwrap()
+            });
+        }
         debug!("Done.");
         Ok(())
     }
@@ -174,16 +191,34 @@ impl Hue {
         info!("Alerting...");
         let alert = Alert::LSelect;
         let duration = 15;
-        self.notify(alert, color, duration)?;
+        for id in self.light_ids.clone() {
+            let bridge = self.bridge.clone();
+            thread::spawn(move || {
+                Hue::notify(
+                    bridge.to_owned(),
+                    &id.to_owned(),
+                    alert.to_owned(),
+                    color.to_owned(),
+                    duration.to_owned(),
+                )
+                .unwrap()
+            });
+        }
         debug!("Done.");
         Ok(())
     }
 
     /// Generic code used to display alert, you should use higher level
     /// `blink()` or `alert()` function instead.
-    fn notify(&self, alert: Alert, color: Color, duration: u64) -> Result<()> {
+    fn notify(
+        bridge: Bridge,
+        light_id: &String,
+        alert: Alert,
+        color: Color,
+        duration: u64,
+    ) -> Result<()> {
         // Get current setup to reapply later
-        let light = self.bridge.get_light(&self.light_id)?;
+        let light = bridge.get_light(light_id)?;
         let state = light.state;
 
         // Set to PagerDuty color
@@ -193,7 +228,7 @@ impl Hue {
             .color(color)
             .transition_time(TRANSITION_TIME);
 
-        match self.bridge.set_light_state(&self.light_id, &color_modifier) {
+        match bridge.set_light_state(light_id, &color_modifier) {
             Ok(v) => v.iter().for_each(|response| debug!("{}", response)),
             Err(e) => error!("Failed to modify the light state: {}", e),
         };
@@ -202,7 +237,7 @@ impl Hue {
 
         // Blink the light
         let alert = light::StateModifier::new().alert(alert);
-        match self.bridge.set_light_state(&self.light_id, &alert) {
+        match bridge.set_light_state(light_id, &alert) {
             Ok(v) => v.iter().for_each(|response| debug!("{}", response)),
             Err(e) => error!("Failed to modify the light state: {}", e),
         };
@@ -210,10 +245,7 @@ impl Hue {
         wait(duration);
 
         // set back previous setup after blink animation
-        match self
-            .bridge
-            .set_light_state(&self.light_id, &self.modifier_from(state))
-        {
+        match bridge.set_light_state(light_id, &Hue::modifier_from(state)) {
             Ok(v) => v.iter().for_each(|response| debug!("{}", response)),
             Err(e) => error!("Failed to modify the light state: {}", e),
         };
@@ -222,12 +254,12 @@ impl Hue {
     }
 
     /// Returns a light state modifier from a light state.
-    fn modifier_from(&self, state: light::State) -> light::StateModifier {
+    fn modifier_from(state: light::State) -> light::StateModifier {
         light::StateModifier::new()
             .on(state.on.unwrap())
             .brightness(ModifierType::Override, state.brightness.unwrap())
-            .hue(ModifierType::Override, state.hue.unwrap())
-            .saturation(ModifierType::Override, state.saturation.unwrap())
+            .hue(ModifierType::Override, state.hue.unwrap_or(0))
+            .saturation(ModifierType::Override, state.saturation.unwrap_or(0))
             .transition_time(TRANSITION_TIME)
     }
 }

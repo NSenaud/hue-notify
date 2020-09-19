@@ -29,7 +29,7 @@ PAGERDUTY_TEAM_ID="ABCD123"
 PAGERDUTY_USER_ID="1234ABC"
 HUEBRIDGE_IP="192.168.1.42"
 HUEBRIDGE_USERNAME="changeme"
-HUEBRIDGE_LIGHT="2"
+HUEBRIDGE_LIGHT_IDS="1,2,3"
 ```
 
 Please refer to Philips Hue API documentation to generate a username.
