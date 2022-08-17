@@ -7,10 +7,10 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.32"
+anyhow = "1.0"
 dotenv = "0.15.0"
-env_logger = "0.7.1"
+env_logger = "0.9"
 futures = "0.3"
-huelib = "0.6.1"
-log = "0.4.11"
-ureq = { version = "1.1.1", features = ["json"] }
+huelib = "0.9"
+log = "0.4"
+ureq = { version = "1", features = ["json"] }
